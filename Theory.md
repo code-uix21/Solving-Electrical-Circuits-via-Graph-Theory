@@ -1,170 +1,222 @@
-Solving Electrical Circuits with Graph Theory — A Full Walkthrough
-Based on Jan Vrbik's "Solving Electrical Circuits via Graph Theory" (Applied Mathematics, 2022), with cross-checks against standard graph theory and network-analysis references.
+# Solving Electrical Circuits with Graph Theory — A Full Walkthrough
+
+Based on Jan Vrbik's *"Solving Electrical Circuits via Graph Theory"* (Applied Mathematics, 2022), with cross-checks against standard graph theory and network-analysis references.
+
+> Full derivation. For a quick overview, see the [README](README.md).
 
 ## Table of Contents
-- [0. What you're about to read](#0-whats-about-to-read)
-- [1. Why bother with graph theory](#1-why-bother-with-graph-theory-at-all)
-- [2. The building blocks: graphs](#2-the-building-blocks-graphs-in-plain-terms)
+
+- [0. What you're about to read](#0-what-youre-about-to-read)
+- [1. Why bother with graph theory at all](#1-why-bother-with-graph-theory-at-all)
+- [2. The building blocks: graphs, in plain terms](#2-the-building-blocks-graphs-in-plain-terms)
 - [3. Trees: the skeleton of a graph](#3-trees-the-skeleton-of-a-graph)
 - [4. Giving the graph a direction](#4-giving-the-graph-a-direction)
-- [5. The circulation matrix](#5-the-circulation-matrix--the-cycle-side-of-the-story)
-- [6. KVL as a matrix equation](#6-kirchhoffs-voltage-law-as-a-matrix-equation)
-- [7. Putting both laws together](#7-putting-both-laws-together-the-full-mm-system)
-- [8. From equations to a circuit](#8-from-equations-to-an-actual-circuit-the-physical-dictionary)
-- [9. Worked examples](#9-worked-examples-verified-not-just-described)
-- [10. Every edge case](#10-every-edge-case-collected-in-one-place)
+- [5. The circulation matrix — the cycle side of the story](#5-the-circulation-matrix--the-cycle-side-of-the-story)
+- [6. Kirchhoff's Voltage Law as a matrix equation](#6-kirchhoffs-voltage-law-as-a-matrix-equation)
+- [7. Putting both laws together: the full m × m system](#7-putting-both-laws-together-the-full-m--m-system)
+- [8. From equations to an actual circuit: the physical dictionary](#8-from-equations-to-an-actual-circuit-the-physical-dictionary)
+- [9. Worked examples (verified, not just described)](#9-worked-examples-verified-not-just-described)
+- [10. Every edge case, collected in one place](#10-every-edge-case-collected-in-one-place)
 - [11. Closing thoughts](#11-closing-thoughts)
+- [References](#references)
 
-0. What you're about to read
-Everybody who's taken an intro physics course has solved a circuit "by hand" — you write Kirchhoff's current law at each junction, Kirchhoff's voltage law around each loop, you get a pile of simultaneous equations, and you grind through them. That works fine for three resistors and a battery. It stops working the moment someone hands you a circuit with sixteen links and eight nodes, because now the question isn't "can I write the equations" — it's "how do I know I've written enough equations, and not too many, and that they're not secretly the same equation twice in disguise."
-That question — how many equations, which ones, and why they're guaranteed to have exactly one solution — is a graph theory question, not a physics question. The physics (Ohm's law, conservation of charge, conservation of energy around a loop) tells you what the equations should say. Graph theory tells you how many independent ones there are and how to pick them systematically so you never duplicate or miss one. This write-up walks through that machinery end to end: every definition, the reasoning behind every claim, the proofs (in plain language), and the exceptions.
-One housekeeping note before we start. Physics and graph theory use different words for the same things, and papers on this topic switch between them constantly. Here's the dictionary, so nothing catches you off guard later:
-Physics word	Graph theory word
-junction	node (or vertex)
-wire / component connecting two junctions	link (or edge)
-loop (a closed path you trace to apply KVL)	cycle
-From here on I'll use the graph theory words, because that's the language the actual argument is built in.
-1. Why bother with graph theory at all
-Here's the actual problem. Say your circuit has m links (resistors, wires, batteries — every physical component sits on some link) and n nodes (junctions). Each link carries one unknown current, so you need m equations to pin down m unknowns. Kirchhoff's current law (KCL) gives you one equation per node — "current in equals current out" — but here's the catch: if you write KCL at every single node, the last equation is automatically implied by all the others. It adds no new information. (We'll prove this later — it falls straight out of the incidence matrix.) So KCL only ever gives you n − 1 genuinely independent equations, not n.
-That leaves you needing m − (n − 1) more equations, and those come from Kirchhoff's voltage law (KVL) applied around loops. But which loops? A circuit with lots of links has lots of possible loops — far more than m − (n − 1) of them, usually — and most of those loops are not independent of each other; tracing one is just tracing a combination of some others. If you pick loops carelessly, you'll either write a redundant equation (and now your system is stuck with either no solution or infinitely many, since you're missing a real constraint) or you'll miss an independent loop entirely (same problem). You need a rule that spits out exactly m − (n − 1) loops, guaranteed independent, every time, for any circuit whatsoever. That rule is graph theory's "fundamental cycles," built from something called a spanning tree. That's really the heart of the whole article: everything else is either building up to that construction or using it.
-2. The building blocks: graphs, in plain terms
-2.1 Vertices, edges, adjacency, incidence
-A graph is just two collections: a set of nodes (drawn as small circles) and a set of links (drawn as line segments connecting some pairs of nodes). That's it — no coordinates required, no notion of distance. All that matters is which nodes are joined to which other nodes.
-Two nodes joined directly by a link are called adjacent, or neighbors. A link is said to be incident to each of the two nodes it touches. These words get used constantly, so it's worth having them solid: "adjacent" is a relationship between two nodes; "incident" is a relationship between a link and a node.
-2.2 The three rules our circuit-graphs have to obey
-Not every graph is fair game for this method. Circuits, modeled as graphs, are required to satisfy three conditions, and each one has a very concrete physical reason behind it.
-Rule 1 — no two nodes joined by more than one link. In real circuits this happens constantly: two parallel resistors between the same pair of junctions, say. A graph that never has two nodes doubly-joined is called simple. When your actual circuit has parallel components between the same two junctions, you don't throw the method out — you just insert a dummy extra node in the middle of one of the two parallel links, splitting it into two links in series instead of one link in parallel with another. The dummy node carries no physical meaning (nothing is actually there), and at the end you just note that the two new links sharing that dummy node must carry identical current — which they will, automatically, once you solve the system, because they're in series. We'll see this exact trick used in one of the paper's worked examples.
-Rule 2 — no link joins a node to itself. A link like this (a "loop" in the strict graph-theory sense — try not to confuse it with "cycle," which we'll define shortly and which means something different) would just be a component sitting there with both of its ends on the same junction. Physically, both ends are at the same potential, so no current can flow through it in steady state regardless of what's on it — it's trivially solved (current = 0) and not worth including in the system. A graph with neither of these two problems (no repeated links, no self-joining links) is called simple, full stop — that word covers both conditions at once.
-Rule 3 — the graph must be connected, and no link's removal is allowed to disconnect it. A graph is connected when you can get from any node to any other node by hopping along links (we'll define this more carefully in a moment). If your circuit's graph is disconnected — say it's actually two separate physical circuits sitting next to each other on the same page with no wire between them — solve them separately; there's nothing to gain from treating them as one system. The second half of this rule is subtler: even if the whole graph is technically connected, we don't allow a link whose removal would disconnect it. Such a link is called a bridge. Here's why bridges are excluded: imagine a bridge link is the only connection between two halves of the circuit. In steady state, no charge piles up anywhere — whatever current flows into a region has to flow back out of it. If the bridge is the sole doorway between the two halves, then whatever current tries to flow through it into (say) the right half has nowhere else to leave that half except back through the same bridge. Net current through it is forced to be zero, battery or no battery on that link. So a bridge is either irrelevant (zero current, ignore it) or a sign that you actually have two independent circuits joined by an idle wire — split them and solve each on its own. Either way, it's not interesting, so we assume it away.
-2.3 Paths, cycles, and connectedness
-A path is a sequence of k distinct nodes where each node is adjacent to the next one in the sequence, using k − 1 links to connect them. A graph is connected exactly when every pair of nodes is joined by at least one path.
-A cycle is what you get when a path's first and last nodes are also directly joined by an existing link, closing the loop — so a cycle on k nodes uses k links total (the k − 1 path links plus the one closing link).
-Here's a small but useful consequence of Rule 3 (no bridges): every single link in the graph sits on at least one cycle. Why? Take any link, and mentally remove it. By Rule 3, the graph stays connected even with that link gone — meaning there's still some other path connecting the two nodes that link used to join. Put the link back, and now you've got that alternate path plus the link itself, forming a closed loop. So no link is ever "isolated" from the cycle structure; this matters later because it guarantees every component in your circuit gets pulled into at least one KVL loop equation.
-3. Trees: the skeleton of a graph
-A tree is a connected collection of links (and their nodes) that contains no cycles at all. Picture a family tree or a literal tree's branches — you can get from the trunk to any leaf, but there's never more than one way to do it, because there's no loop to get lost in.
-3.1 Spanning trees, and how to build one
-A spanning tree of a connected graph is a tree that touches every single node of the graph — it "spans" all n of them. A spanning tree always has exactly n − 1 links. (This is a fixed fact about trees: a tree on n nodes always has n − 1 links, never more, never fewer — you can convince yourself of this by noting that adding the very first node costs zero links, and every additional node you attach costs exactly one new link to connect it in without creating a cycle.)
-There isn't just one spanning tree, usually — most graphs have plenty of them (we'll come back to exactly how many, later, and it turns out to be a genuinely elegant number to compute). But you can always find at least one, using a dead-simple greedy process: start with any single link and its two endpoints. Then repeatedly look for a node not yet in your growing collection that's a neighbor of some node already in it, and add that node plus the connecting link. Keep going until every node is included.
-Why does this always work, i.e., why can't you ever get stuck partway through with nodes left over? Because if you did get stuck — no leftover node adjacent to anything already collected — that would mean there's no link at all between your current partial collection and the rest of the graph, which is exactly what "disconnected" means. Since we require the whole graph to be connected (Rule 3), that situation can't happen. The process must run all the way to n nodes.
-3.2 Co-trees and fundamental cycles
-Once you've picked a spanning tree, every link not in it is left over. This leftover collection is called the co-tree, and it has exactly m − (n − 1) links (all m links, minus the n − 1 the tree used).
-Here's the key move that makes the whole method work. Take any single co-tree link and add it back into the spanning tree. What happens? The tree already connects its two endpoints via some unique path through tree links (unique, because a tree has no cycles — there's only ever one way to get between two points in a tree). Adding the extra co-tree link on top of that existing tree-path creates exactly one new closed loop: the tree-path there, plus the co-tree link back. This loop is called a fundamental cycle, and it's "fundamental" relative to the spanning tree you chose — pick a different spanning tree and you'll generally get a different set of fundamental cycles.
-Since there are m − (n − 1) co-tree links, and each one produces exactly one fundamental cycle this way, you get exactly m − (n − 1) fundamental cycles — precisely the number of extra equations we said we needed back in Section 1. That's not a coincidence; it's the entire point of the construction.
-3.3 The delta-sum: combining cycles
-One more tool, because it explains why the fundamental cycles are enough to cover every possible loop in the graph, not just the ones built directly from a single co-tree link.
-Take two cycles (any two, not necessarily fundamental ones) and look at their links. The delta-sum (sometimes written as a triangle, Δ) of the two cycles keeps only the links that belong to exactly one of them, and throws away any link that both cycles share. This operation is commutative and associative — order doesn't matter, and you can chain it across any number of cycles, keeping only the links used an odd number of times across all of them and discarding the rest, same idea as an XOR across sets.
-Here's the payoff: any cycle anywhere in the graph can be produced as a delta-sum of some subset of the fundamental cycles — specifically, the fundamental cycles corresponding to whichever co-tree links that cycle happens to use. This means the m − (n − 1) fundamental cycles aren't just some useful loops; they form a complete "basis" for every loop the graph could ever have. If you can guarantee a physical law holds for each fundamental cycle individually, it automatically holds for every possible cycle you could trace in the circuit, because any such cycle is just a combination of fundamental ones (and a combination of "this equals zero" statements is still "equals zero"). We'll lean on this fact directly when we get to Kirchhoff's voltage law.
-4. Giving the graph a direction
-Everything so far has been about the graph's shape. Now we need to talk about current, and current has a direction — it flows one way or the other along a wire. So from here on, every link gets an arrow (you pick the direction; it doesn't have to match the "real" direction current ends up flowing — if your arrow guess is backwards, the solved current for that link will just come out negative, and that's fine, that's exactly what the sign is for).
-4.1 The incidence matrix
-With directions assigned, we can build the incidence matrix, usually called A. It has one row per node (n rows) and one column per link (m columns). The entry in row p, column j is:
-•	+1 if link j's arrow points out of node p (node p is the tail),
-•	−1 if link j's arrow points into node p (node p is the head),
-•	0 if link j isn't incident to node p at all.
-Since every link has exactly two endpoints, every column of this matrix has exactly one +1, exactly one −1, and zeros everywhere else — no exceptions, that's just what "a link connects two nodes" means once you write it in matrix form.
-4.2 Why the incidence matrix's rank is exactly n − 1
-Claim: the only way to combine the rows of the incidence matrix (each row scaled by some number, then added together) and get the all-zero row, is to take every row, scaled by the same number. Nothing else works.
-Why: say you assign a number c_p to each node p, and you want the weighted sum of rows (row p times c_p, summed over all nodes) to come out as the zero vector — meaning every column adds up to zero. Look at what a single column (link) contributes: if link j goes from node p to node q, its column has a +1 in row p and a −1 in row q, so it contributes c_p·(+1) + c_q·(−1) = c_p − c_q to that combination. For the whole thing to vanish, you need c_p = c_q for every link — that is, for every pair of adjacent nodes. But the graph is connected (Rule 3), so you can hop from any node to any other node through a chain of adjacent pairs, and each hop forces the two c-values to match. Chain enough hops together and you find all the c_p values must be equal to each other — some single constant, call it c. So the only zero-producing combination is "take every row with the same weight c" — i.e., literally, summing all n rows always gives the zero row (you can check this directly too: each column has one +1 and one −1, so summing all rows just cancels every column to zero, no cleverness needed), and there's no other independent way to hit zero.
-What this buys you: the n rows of the incidence matrix have exactly one linear dependency among them (the "sum them all" one), so their rank is n − 1, not n. If you delete any single row — it genuinely doesn't matter which one — the remaining n − 1 rows are linearly independent. Call this trimmed (n − 1)-by-m matrix K.
-4.3 Kirchhoff's Current Law as a matrix equation
-Let i be the column vector holding the (unknown) current on every link. The matrix equation
-K · i = 0
-(where the right side is a column of n − 1 zeros) is exactly Kirchhoff's current law written at every node except the one whose row we deleted. Look at what one row of K dotted with i actually computes: for a given node, it sums +1×(current on each link leaving that node) and −1×(current on each link entering it) — in other words, "current out minus current in" for that node, which KCL says must equal zero.
-Here's a nice bonus: that missing node's KCL equation is automatically satisfied too, for free, with no extra work. We showed a moment ago that summing all n rows of the incidence matrix always gives the exact zero row, no matter what — this is a structural fact about the matrix, true regardless of what currents you plug in. So (sum of all rows)·i = 0 always, trivially. But (sum of all rows)·i = (deleted row)·i + K·i. We've imposed K·i = 0. So (deleted row)·i must equal 0 as well, automatically. Physically this is just "total charge is conserved overall, so if it balances at every node but one, it has no choice but to balance at the last one too" — but it's nice to see it fall directly out of the linear algebra rather than having to argue it separately.
-4.4 Determinants of K, spanning trees, and a detour into a 175-year-old theorem
-Now pick any n − 1 columns (links) out of K's m columns, and look at the resulting square, (n − 1)-by-(n − 1) sub-matrix's determinant. Two cases:
-Case A: those n − 1 links contain a cycle. Then the determinant is exactly 0. Reasoning: walk around that cycle consistently in one direction, and add up the corresponding columns with a + sign when you're walking the same way as a link's arrow and a − sign when you're walking against it. At every node the cycle passes through, you enter once and leave once, contributing a +1 and a −1 that cancel — so this signed combination of the cycle's columns comes out to the exact zero vector. That means those columns are linearly dependent, and dependent columns always force a zero determinant.
-Case B: those n − 1 links contain no cycle. A link-set with n − 1 links and no cycle, spanning n nodes, is forced to be exactly a spanning tree (a graph fact: an acyclic set of links with k connected pieces uses exactly (number of nodes touched) − k links; if you have n − 1 links, zero cycles, and are working across n nodes, the only way the arithmetic works out is k = 1, meaning it's a single connected tree touching everything — a spanning tree). In this case the determinant is exactly +1 or −1. Here's why: picture rooting this spanning tree at the one node whose row we deleted from the incidence matrix to make K. Every other node then has a unique "parent link" — the one tree-link on its path back toward the root. That gives a perfect one-to-one matching between the n − 1 remaining nodes (rows) and the n − 1 tree links (columns): each node matched to its own parent link. In the usual permutation expansion of a determinant, every term is a product of entries, one from each row, no two from the same column — and an entry is zero unless the node is actually incident to that link. Because of the unique parent-matching, there's only one permutation where every chosen entry is non-zero; every other permutation includes at least one row/column pairing where the node isn't incident to that link, contributing a zero and killing that entire term. One surviving term, made of ±1's multiplied together, means the whole determinant is ±1.
-So: every maximal (size n − 1) sub-determinant of K is either 0 (not a spanning tree) or ±1 (is a spanning tree) — nothing in between, ever.
-This connects to something you may have run into before under a different name. There's a famous 175-year-old result called Kirchhoff's Matrix-Tree Theorem (yes, the same Kirchhoff — he originally proved this exact fact in 1847 while working on electrical networks), which states that the number of spanning trees of a graph equals any cofactor of the graph's Laplacian matrix. The Cauchy-Binet formula — a general identity that says the determinant of a product of two rectangular matrices equals the sum, over every way of choosing a matching set of columns/rows, of the products of the corresponding square sub-determinants — applied here to det(K · Kᵀ) gives exactly this: det(K Kᵀ) equals the sum, over every possible choice of n − 1 columns, of that choice's determinant squared. Since each of those squared determinants is either 0² = 0 or (±1)² = 1, the sum simply counts how many of those column-choices are spanning trees — in other words, det(K Kᵀ) equals the total number of spanning trees the graph has. That's the Matrix-Tree Theorem, arrived at via K rather than the more commonly seen Laplacian — they're really the same object viewed two ways, since K Kᵀ is exactly a reduced Laplacian matrix in disguise.
-5. The circulation matrix — the cycle side of the story
-K handles KCL. Now we need the matrix that handles KVL, built from the fundamental cycles instead of the nodes.
-5.1 Building C
-Pick a spanning tree (any one), find its m − (n − 1) fundamental cycles as described in Section 3.2, and give each one a direction to walk it in — the natural choice is to make the walking direction agree with its own co-tree link's arrow, so each fundamental cycle "starts" by following its defining co-tree link forward.
-The circulation matrix, called C, has one row per fundamental cycle (so m − (n − 1) rows) and one column per link (so m columns, same as before). The entry in a given row/column is:
-•	+1 if that link belongs to the cycle and the cycle's walking direction agrees with the link's own arrow,
-•	−1 if the link belongs to the cycle but the cycle walks against the link's arrow,
-•	0 if the link isn't part of that cycle at all.
-In electrical engineering textbooks you'll sometimes see this exact object called the fundamental loop matrix or the tie-set matrix instead — same construction, different name, because circuit theory and graph theory grew up somewhat separately and never fully agreed on vocabulary.
-5.2 Bonds (cut-sets): the mirror image of a cycle
-We need one more definition, and it's the natural "opposite" of a cycle. Split the graph's nodes into two groups, any way you like, as long as both groups stay internally connected once you take away whichever links cross between them. The links that cross the divide — connecting a node in group one to a node in group two — are called a bond (in circuit theory this is usually called a cut-set). Give a bond a direction too: pick one overall direction to cross the divide (left-to-right, say) and call that the bond's positive direction.
-Here's the intuitive picture: a cycle is a closed loop that stays inside a region and comes back to where it started; a bond is a barrier that separates two regions. They're dual concepts, and it turns out this duality runs surprisingly deep — including one useful fact we'll need: any collection of links whose removal disconnects the graph must contain a full bond inside it. (Makes sense: if removing some links breaks the graph in two, the actual dividing line between whichever two pieces you end up with is a bond, and everything you removed has to at least include the links that cross that particular divide.)
-5.3 Why bond columns of C are dependent
-Same style of argument as before, mirrored. Take a bond, walk along a fundamental cycle, and watch what happens whenever the cycle crosses the bond's dividing line: since the cycle is a closed loop, if it crosses from side one to side two at some point, it must cross back from side two to side one again later to return home. Each such crossing contributes +1 or −1 (depending on whether that particular crossing goes with or against the bond's chosen direction), and because crossings always come in matched go/return pairs, they cancel out in pairs. Net contribution to that row: zero, for every single fundamental cycle. That means the signed combination of the bond's columns (signed according to the bond's own direction) equals the exact zero vector — the columns are linearly dependent, and once again, dependent columns force a zero determinant for any square sub-matrix built from them.
-5.4 Why non-bond columns of C are independent
-Suppose you pick m − (n − 1) columns (links) of C that don't contain a bond. By the fact noted in 5.2, if removing them doesn't disconnect the graph, the remaining n − 1 links must form a spanning tree — meaning your chosen columns form a valid co-tree, just not necessarily the specific one C itself was built from.
-Here's the trick: build a second circulation matrix, C1, based on a spanning tree whose co-tree is exactly this new set of columns you picked. Compare it to the original C (call it C2, based on whatever spanning tree you originally used). There's a precise relationship between any two circulation matrices built from different spanning trees:
-C1 = (C1 restricted to C2's co-tree columns) · C2
-What this equation is really saying: every fundamental cycle of C1 can be rebuilt as a signed combination of C2's fundamental cycles — you figure out the combination by checking, for each of C2's co-tree links, whether it's part of the C1 cycle in question and with which sign, and that gives you the exact coefficients. It's the directed, matrix version of the delta-sum idea from Section 3.3.
-Now restrict both sides of that equation down to just C1's own defining co-tree columns (call that set S1), and take the determinant of both sides:
-det(C1 restricted to S1) = det(C1 restricted to S2) · det(C2 restricted to S1)
-The left-hand side is easy: restricted to its own co-tree, C1 has exactly one non-zero permutation term in its determinant expansion (each of C1's fundamental cycles contains exactly one of its own co-tree's links, by construction — the very link that defines that cycle), so the left side is forced to be exactly ±1.
-But the right side is a product of two integers (determinants of matrices built entirely from +1, −1, 0 entries are always integers). Two integers multiplying to give ±1 means each one individually has to be ±1 as well — there's no other way to factor ±1 using integers. So det(C2 restricted to S1) — the very quantity we were originally trying to pin down, det(C restricted to any valid co-tree) — comes out to ±1, guaranteed, for any valid co-tree S1, not just the one C happened to be built from.
-Put Section 5.3 and this together: det(C restricted to any m − (n−1) columns) is 0 if those columns contain a bond, and ±1 if they instead form a valid co-tree. No other outcome is possible.
-5.5 Counting spanning trees again, from the cycle side
-Run the same Cauchy-Binet argument we used on K, this time on C: det(C · C-transpose) equals the sum, over every possible way of choosing m − (n − 1) columns, of that choice's determinant squared. Every squared determinant is 0 or 1, by 5.4, and it's exactly 1 when the chosen columns form a valid co-tree. So det(C times C-transpose) counts the number of co-trees the graph has — which is the same number as the number of spanning trees, since every spanning tree and its co-tree are just complements of each other, a strict one-to-one pairing.
-That's a genuinely satisfying result: two completely different-looking constructions — K built from nodes and currents, C built from cycles and loops — both independently compute the exact same number, the graph's spanning tree count, just approached from opposite directions (the node side and the loop side). It's the same duality that makes KCL and KVL feel like mirror images of each other in the first place.
-5.6 K and C are orthogonal — and why that matters
-One more structural fact, and then we're ready to attach the physics.
-Every row of K is orthogonal to every row of C — their dot product is always exactly zero. Here's why, thinking entry by entry across the columns (links): for a link that isn't incident to the node in question, K's entry there is 0, so it contributes nothing to the dot product no matter what C says. For a link that is part of the cycle in question, either the node the K-row belongs to lies on that cycle, or it doesn't. If it doesn't lie on the cycle, none of the cycle's links can touch it either (a link on a cycle has both endpoints on that cycle, by definition), so again there's no overlap to worry about. If the node does lie on the cycle, then exactly two of its incident links are part of that cycle — the one the cycle uses to arrive at that node and the one it uses to leave — and their contributions to the dot product cancel each other exactly (one is effectively an "arrival," contributing a sign, the other a "departure," contributing the opposite sign). Either way, the total is zero.
-Stack K on top of C. Since K has n − 1 rows and C has m − (n − 1) rows, the stacked matrix [K; C] is exactly m rows by m columns — square. Multiply it by its own transpose: because K's rows and C's rows are mutually orthogonal, the "cross terms" (K rows dotted with C rows) all vanish, leaving a clean block-diagonal result — (K times K-transpose) sitting in one block, (C times C-transpose) in the other, zeros everywhere else. The determinant of a block-diagonal matrix is just the product of its blocks' determinants, so:
-(det[K; C])² = det(K K-transpose) · det(C C-transpose) = (number of spanning trees)²
-meaning det[K; C] itself is exactly ± the number of spanning trees. Every valid pairing of a spanning tree (through K) with its own complementary co-tree (through C) contributes one non-zero ±1 term to this determinant's full expansion, and — this part is a genuinely non-obvious fact that has to be checked rather than assumed — every one of those terms turns out to carry the same sign, which is precisely why they add up to the full spanning-tree count instead of partially cancelling.
-6. Kirchhoff's Voltage Law as a matrix equation
-Now finally bring in the actual physics. Every link j carries a resistance r_j (put 0 if it's a plain wire, and if a link has several resistors in series on it physically, just add their values together — that sum is r_j) and possibly a voltage source, contributing v_j (with a sign: positive if the source pushes current the same way the link's arrow points, negative if the opposite way; 0 if there's no source on that link). Collect resistances into a diagonal matrix R (r_j down the diagonal, zero everywhere else) and voltages into a column vector v.
-Claim: the matrix equation
-C R i = C v
-enforces Kirchhoff's voltage law for every fundamental cycle. Here's why it says what it says. Ohm's law for a single link, written to account for a possible source, works out to: the potential drop across the link equals (current × resistance) minus the source's contribution in that direction. Walk all the way around a closed loop back to your starting point, and the total potential change has to be zero (you're back where you started — potential isn't a multi-valued thing). Summing Ohm's law around the loop, link by link, with the correct + or − sign depending on whether you're walking with or against each link's arrow, the "potential" terms telescope away completely (each intermediate node's potential gets added once and subtracted once as you pass through it), leaving exactly: (signed sum of i_j × r_j around the loop) = (signed sum of v_j around the loop). That's exactly one row of C R i = C v — the left side is a fundamental cycle's row dotted with (R times i), the right side is the same row dotted with v.
-And because any cycle in the graph can be built as a delta-sum of fundamental cycles (Section 3.3), if this equation holds for every fundamental cycle, it automatically holds for every possible loop you could ever trace in the circuit — you don't need to separately check every loop by hand; the fundamental ones carry all the information.
-7. Putting both laws together: the full m×m system
-Stack the n − 1 KCL equations on top of the m − (n − 1) KVL equations:
-[K; C R] · i = [0; C v]
-This is m equations in m unknowns (the current on every single link) — exactly matched, as it should be.
-7.1 When does it have a unique solution?
-This system has one, and only one, solution exactly when its m-by-m coefficient matrix [K; C R] is non-singular — determinant not zero. So the real question becomes: what is det[K; C R], and when does it vanish?
-Here's where the K and C machinery from Sections 4 and 5 pays off directly. Because R only scales each column (link j's column gets multiplied by r_j — that's what multiplying by a diagonal matrix on the right does), a Laplace-style expansion of this determinant, splitting the m columns into a size-(n − 1) group and a size-(m − (n − 1)) group, produces a sum over every possible way to split the links into a candidate spanning tree and its complementary co-tree. For a given split, the term only survives if the "tree part" really is a spanning tree (giving det(K restricted there) = ±1, else 0) and the "co-tree part" really is that tree's proper co-tree (giving det(C restricted there) = ±1, times the product of the resistances of every link in that co-tree, since scaling a square matrix's columns each by a different factor scales its determinant by the product of all those factors). Every non-surviving combination contributes exactly zero.
-Putting it together (and using the "all surviving terms share one consistent sign" fact from Section 5.6):
-det[K; C R] = ± Σ (over every spanning tree) [ product of the resistances of that tree's co-tree links ]
-This is a genuinely lovely formula — it's summing, over every possible spanning tree the graph has, the product of resistances of whatever links got left out of that tree. (It's also the resistor-network analog of the "weighted spanning tree" sums that show up in the weighted version of Kirchhoff's Matrix-Tree Theorem, used elsewhere to compute things like driving-point resistance between two terminals of a network — same underlying object, different application.)
-Since resistances are non-negative, every term in that sum is non-negative, and the whole sum is zero only if every single spanning tree has at least one zero-resistance link in its co-tree — equivalently, only if it's impossible to find even one spanning tree that manages to contain all the zero-resistance links inside itself. And that's possible to do (build a spanning tree containing all the zero-resistance links) precisely when the zero-resistance links, by themselves, don't already contain a cycle — because you can always start with an acyclic set of links and keep adding more links (avoiding cycles) until you've spanned every node; if the zero-resistance links themselves already looped back on each other, that starting set already isn't extendable into a tree, and you're stuck.
-So: the system has a unique solution for every link's current, guaranteed, exactly when the zero-resistance links (if there are any at all) don't form a cycle among themselves. This is a clean, checkable condition, and — worth flagging, since the source paper is explicit about this — a full proof that this condition is both necessary and sufficient doesn't seem to appear laid out this way in the standard textbooks on the subject; it's one of the more original contributions of the derivation.
-7.2 Edge case: the short circuit
-What happens if the zero-resistance links genuinely do form a cycle, and that cycle contains at least one voltage source? Physically, an ideal source is trying to drive current through a path with literally zero total resistance. Ohm's law for that loop reads (source voltage) = (current) × (0), which is only satisfiable by finite current if the source voltage is also zero — but it isn't, so the only way the equation can "balance" is for the current to blow up without bound. This is the mathematical face of a short circuit: in a real circuit this is exactly the scenario where a wire melts, a fuse blows, or a breaker trips, because real wires always carry some small resistance and the resulting current, while finite, is far larger than anything the circuit was designed for.
-7.3 Edge case: the floating, indeterminate loop
-What if the zero-resistance links form a cycle, but no voltage source sits anywhere on that cycle? Then the system is rank-deficient rather than blowing up — it has infinitely many valid solutions rather than none. The reason: you can take any solution and add an arbitrary constant current circulating purely around that zero-resistance loop, and nothing breaks. KVL around that loop still holds (0 resistance × any current, still gives 0, matching the 0 total voltage around a source-free loop), and KCL at every node is untouched too, because a pure circulation adds and removes the same extra current at every node on the loop, net zero change. This is the electrical analog of a persistent current in a superconducting loop — nothing dissipates it, so nothing pins down its exact value from the given circuit alone. When a computer program hits this situation, it has to return some particular solution (typically whichever the underlying linear-solve routine happens to land on, often the minimum-norm one) — it isn't wrong, it's just one member of an infinite family, and the circuit itself genuinely doesn't determine which one is "the" answer.
-8. From equations to an actual circuit: the physical dictionary
-Once the theory's in place, describing an actual circuit is refreshingly simple. For every link, you need up to four pieces of information: which two nodes it connects (the order you list them in fixes the arrow direction), its total resistance (adding together any resistors that sit in series on that one link), and any battery voltage on it (idealized as a perfect source with no internal resistance of its own — real battery internal resistance, if you wanted to model it, would just be folded into that link's r value). Units are kept deliberately generic: a battery of voltage v connected in a closed loop to a resistance r produces a current of size v/r in the source's own direction — ordinary Ohm's law, nothing new, just applied consistently link by link.
-9. Worked examples (verified, not just described)
-Before trusting any of this, I actually implemented the algorithm independently and ran it against every one of the three circuits used as examples. All three matched the published answers exactly, digit for digit — here's what each example is actually demonstrating.
-9.1 A "plain" 8-node, 16-link circuit
-Eight nodes labeled A through H, sixteen links, fourteen of which carry a resistor and two of which carry a battery (one of −12 V on the C–G link with zero resistance, one of 9 V on the E–H link with 6 Ω of resistance). Feeding this into the method — build the incidence matrix, drop a row to get K, pick a spanning tree, build the fundamental cycles into C, assemble [K; C R] and [0; C v], solve — produces one specific current for every link, positive or negative depending on whether the true current flows with or against the arrow you originally chose for that link. Worth noting: the resulting graph for this circuit is not planar — you cannot draw it on paper without at least one pair of links crossing without an actual junction there. Planarity is a big deal in plenty of graph theory contexts (map coloring, circuit-board layout where crossings mean an actual short if you're not careful, and so on), but for this particular method it's completely irrelevant — nothing in the derivation of K, C, or the final linear system cares whether the graph could theoretically be drawn flat. It's a good reminder that a property being important in graph theory generally doesn't mean it's important for every specific graph-theory-flavored problem.
-9.2 A circuit with a parallel (multi-edge) connection
-Recall Rule 1 from Section 2.2: no two nodes may be joined by more than one link. Real circuits break this constantly — two components wired in parallel between the same two junctions. The fix, illustrated in the paper's second example, is to insert a harmless dummy node partway along one of the two parallel links, splitting that one link into two links in series through the new node. The new node isn't a real physical junction — nothing sits there — but the graph now satisfies Rule 1 again. Once you solve the system, the two new links sharing that dummy node come out carrying identical current, which is exactly what you'd expect physically (they're now in series, so of course the same current passes through both), and you just merge them back into a single reported value, discarding the placeholder node.
-9.3 Capacitor circuits, and a neat trick called elastance
-The same machinery, remarkably, solves circuits built entirely from capacitors and batteries instead of resistors and batteries, with only one substitution needed: instead of entering a link's resistance, you enter the reciprocal of its capacitance (1/C). The output then represents charge sitting on each capacitor rather than current through each resistor.
-Why does swapping in 1/C work so cleanly? The resistor version relies on Ohm's law, v = i·r, giving current a clean linear relationship to voltage through resistance. The capacitor analog is q = C·v (charge equals capacitance times voltage) — rearranged, v = q·(1/C), which has exactly the same shape as Ohm's law, just with current replaced by charge and resistance replaced by 1/C. The reciprocal of capacitance actually has its own name in circuit theory — elastance (units of inverse farads), a term coined by Oliver Heaviside by analogy to mechanical stiffness — and its most useful property for this method is that capacitors wired in series combine by adding their elastances directly (1/C_total = 1/C₁ + 1/C₂ + …), exactly the same additive rule that ordinary resistors in series follow for resistance. That's precisely why the method carries over untouched: a "link" in this framework is really a series combination of whatever sits on it, and elastance is the one capacitor-related quantity that adds up correctly along a series link, the same way resistance does.
-A couple of practical notes that come with this substitution. If a link happens to have two or more capacitors in series on it, add their reciprocal capacitances together first (same rule as combining series resistors — add the values directly, just in elastance units), and the resulting charge applies equally to each of them (they're in series, so they share the same charge, just as series resistors share the same current). And if a link is a plain wire with no capacitor on it at all, enter 0 for its reciprocal capacitance — think of a wire as a capacitor with infinite capacitance (an elastance of exactly zero), and the "charge" the method reports for that link is really just the total amount of charge that flowed through that wire while charging up the rest of the network to its final resting state.
-10. Every edge case, collected in one place
-Scattered through the sections above — here they all are together, as a checklist.
-•	Parallel links (two nodes joined more than once). Not allowed directly. Fix: insert a dummy node partway along one of the duplicate links, splitting it into two links in series. The two new links will come out of the solution carrying identical current — merge them and discard the dummy node.
-•	Self-joining links. Excluded outright; both ends at the same potential means zero current through it in steady state regardless of what's on it, so it's trivial and adds nothing.
-•	Disconnected circuits. If the graph genuinely splits into separate pieces with no link between them, solve each piece as its own independent circuit — there's no shared system to build.
-•	Bridges (links whose removal would disconnect the graph). Excluded by assumption, because such a link is forced to carry exactly zero current regardless of what component sits on it (steady-state charge conservation on the isolated side leaves it no other way to balance).
-•	Zero-resistance links, none of which form a cycle among themselves. No problem at all — the system still has a unique solution, since some spanning tree can always be built that contains all of them.
-•	Zero-resistance links that do form a cycle, with a voltage source on that cycle. Short circuit — the mathematics produces an unbounded, infinite current, the model's way of representing what happens physically (a blown fuse, a melted wire, a breaker tripping) when an ideal source pushes current through zero resistance.
-•	Zero-resistance links that form a cycle, with no voltage source anywhere on that cycle. Under-determined — infinitely many valid current distributions exist, differing by an arbitrary circulating current around that zero-resistance loop (the electrical analogue of a persistent current in a superconducting ring); a solver has to pick one particular answer, and it isn't uniquely "the" answer.
-•	Non-planar circuits (graphs that can't be drawn flat without link crossings). Irrelevant to this method entirely — nothing in the derivation cares whether the graph is planar. It matters a great deal in other corners of graph theory, just not this one.
-•	Capacitor-and-battery circuits instead of resistor-and-battery ones. Handled by the identical machinery, substituting reciprocal capacitance (elastance) for resistance everywhere, and reading the output as charge instead of current. Series capacitors on the same link: add their elastances directly, same rule as series resistors. A link with no capacitor at all: enter 0 (infinite capacitance / zero elastance — a plain wire), and read the output as the total charge that passed through it while the rest of the network charged up.
-11. Closing thoughts
-The reason this is worth learning even if you'll never build a 16-link circuit by hand again is that the pattern here — a physical conservation law (KCL) living in the row space of one matrix, a physical path-independence law (KVL) living in the row space of a complementary matrix, the two of them provably orthogonal, and the whole system's solvability boiling down to a single determinant condition you can actually compute and interpret — shows up again and again outside circuits too, in flow networks, in structural engineering (trusses), in Markov chains, in the very same 1847 Kirchhoff theorem being reused two centuries later in totally unrelated combinatorics papers. Once you've seen the K/C, cycle/bond, tree/co-tree duality laid out carefully once, in a setting as physically concrete as a circuit, it becomes much easier to recognize the same skeleton wearing a different costume the next time it turns up.
-References
-Primary source:
-•	Vrbik, J. (2022). Solving Electrical Circuits via Graph Theory. Applied Mathematics, 13, 77–86. https://doi.org/10.4236/am.2022.131007
-Background and cross-checks used while writing this up:
-•	Wikipedia, "Kirchhoff's theorem" (matrix-tree theorem statement and history)
-•	Wikipedia, "Elastance" (definition, Heaviside's coinage, use in network analysis)
-•	Wolfram MathWorld, "Matrix Tree Theorem"
-•	Tutorialspoint, "Network Theory: Topology Matrices" (incidence, fundamental loop/tie-set, and fundamental cut-set matrices as used in electrical engineering terminology)
-•	Putman, A., "The Cauchy–Binet formula" (lecture notes, University of Notre Dame)
-•	Dörfler, F., Simpson-Porco, J.W., Bullo, F., "Electrical Networks and Algebraic Graph Theory" (survey, for the cycle-space/cut-space framing)
+---
 
+## 0. What you're about to read
+
+Anyone who has taken an intro physics course has solved a circuit "by hand" — you write Kirchhoff's current law at each junction, Kirchhoff's voltage law around each loop, and grind through the simultaneous equations. That works fine for small circuits, but for complex ones with sixteen links and eight nodes, the challenge isn't writing the equations; it's knowing you've written exactly enough independent equations without secretly duplicating them.
+
+That question of independent equations is a graph theory problem, not a physics problem. Physics dictates what the equations should say, but graph theory dictates how to pick them systematically so you never duplicate or miss one. This walkthrough covers that machinery end to end: the definitions, reasoning, proofs, and exceptions.
+
+Physics and graph theory use different terminology, so here is the dictionary:
+
+| Physics term | Graph theory term |
+|---|---|
+| Junction | Node (or vertex) |
+| Wire / Component | Link (or edge) |
+| Loop | Cycle |
+
+We will use graph theory terminology from here on.
+
+---
+
+## 1. Why bother with graph theory at all
+
+If your circuit has $m$ links (components) and $n$ nodes (junctions), you need $m$ equations to pin down the $m$ unknown link currents. Kirchhoff's current law (KCL) provides one equation per node, but if you write KCL for every node, the final equation is automatically implied by the rest. Therefore, KCL only ever provides $n - 1$ genuinely independent equations.
+
+That leaves you needing $m - (n - 1)$ additional equations, which come from Kirchhoff's voltage law (KVL) applied to loops. A large circuit has far more loops than needed, and most are not independent. If you pick loops carelessly, you will write a redundant equation or miss a real constraint, leaving the system with infinitely many or no solutions.
+
+You need a rule that universally yields exactly $m - (n - 1)$ guaranteed independent loops. That rule relies on graph theory's "fundamental cycles," built from a spanning tree, which forms the heart of this method.
+
+---
+
+## 2. The building blocks: graphs, in plain terms
+
+### 2.1 Vertices, edges, adjacency, incidence
+
+A graph is simply a set of nodes and a set of links joining pairs of nodes. Coordinates and distance don't matter; only connections do. Two nodes joined directly by a link are "adjacent" (neighbors), while a link is "incident" to the two nodes it touches.
+
+### 2.2 The three rules our circuit-graphs have to obey
+
+Circuits modeled as graphs must satisfy three physical conditions:
+
+**Rule 1 — no two nodes joined by more than one link.**
+If your circuit has parallel components, you insert a dummy extra node to split one parallel link into two series links. The dummy node carries no physical meaning, and the math will automatically ensure the new series links carry identical current.
+
+**Rule 2 — no link joins a node to itself.**
+A component with both ends on the same junction is at the same potential, meaning zero steady-state current flows through it. It is trivially solved and safely excluded. Graphs satisfying Rules 1 and 2 are called "simple".
+
+**Rule 3 — the graph must be connected, and no link's removal can disconnect it.**
+If a graph is physically disconnected, solve the pieces as separate circuits. Furthermore, we exclude any link whose removal disconnects the graph (a "bridge"). In steady state, any current entering a region through a bridge must exit through that same bridge, forcing the net current to equal zero. Bridges are therefore irrelevant or indicate two distinct circuits.
+
+### 2.3 Paths, cycles, and connectedness
+
+A path is a sequence of $k$ distinct nodes connected by $k - 1$ links. A connected graph has at least one path between every pair of nodes. A cycle is formed when a path's start and end nodes are closed by an additional link, using $k$ links total.
+
+Because of Rule 3, every link in the graph sits on at least one cycle, guaranteeing every circuit component gets pulled into at least one KVL loop equation.
+
+---
+
+## 3. Trees: the skeleton of a graph
+
+A tree is a connected collection of links containing zero cycles. There is never more than one path between any two points in a tree.
+
+### 3.1 Spanning trees, and how to build one
+
+A spanning tree touches all $n$ nodes of the graph and always contains exactly $n - 1$ links. You can easily build one using a greedy process: start with one link, repeatedly find an uncollected adjacent node, and add it alongside its connecting link until every node is included. You will never get stuck partway because the graph is fully connected (Rule 3).
+
+### 3.2 Co-trees and fundamental cycles
+
+Every link left out of your spanning tree forms the co-tree, which contains exactly $m - (n - 1)$ links. Adding just one co-tree link back into the tree creates exactly one closed loop, called a fundamental cycle. Since there are $m - (n - 1)$ co-tree links, you get exactly $m - (n - 1)$ fundamental cycles — providing precisely the number of missing equations we needed.
+
+### 3.3 The delta-sum: combining cycles
+
+The delta-sum ($\Delta$) of two cycles keeps only the links used an odd number of times and discards any shared links. Crucially, any circuit cycle can be produced as a delta-sum of the fundamental cycles associated with its specific co-tree links. If a physical law holds for each fundamental cycle, it automatically holds for every possible cycle in the circuit.
+
+---
+
+## 4. Giving the graph a direction
+
+From here on, assign an arbitrary arrow direction to every link. If you guess backwards, the solved current will just be negative.
+
+### 4.1 The incidence matrix
+
+The incidence matrix $A$ has $n$ rows (nodes) and $m$ columns (links). For row $p$ and column $j$, the entry is $+1$ if link $j$'s arrow points out of node $p$, $-1$ if it points into node $p$, and $0$ if not incident. Every column has exactly one $+1$ and one $-1$.
+
+### 4.2 Why the incidence matrix's rank is exactly n − 1
+
+Summing all $n$ rows of $A$ always gives the exact zero row because every column's $+1$ and $-1$ cancel out. Consequently, the $n$ rows have exactly one linear dependency, meaning their rank is $n - 1$. If you delete any single row, the remaining $n - 1$ rows are linearly independent. We call this trimmed matrix $K$.
+
+### 4.3 Kirchhoff's Current Law as a matrix equation
+
+Let $i$ be the column vector of unknown link currents. The matrix equation $K \cdot i = 0$ perfectly represents KCL at every node except the deleted one. Because total charge is conserved across the network, if KCL balances at $n - 1$ nodes, it is mathematically guaranteed to balance at the missing final node.
+
+### 4.4 Determinants of K, spanning trees, and a 175-year-old theorem
+
+If you pick a square $(n - 1) \times (n - 1)$ sub-matrix from $K$, its determinant is exactly $0$ if its links contain a cycle, because the signed columns perfectly cancel. If the links form a spanning tree, the determinant is exactly $\pm 1$ due to a unique one-to-one parent matching back to the root node.
+
+By applying the Cauchy-Binet formula to $\det(K K^\top)$, the squared determinants of every sub-matrix sum up perfectly to the total number of spanning trees in the graph. This confirms Kirchhoff's 1847 Matrix-Tree Theorem, deriving it through $K$ rather than the traditional Laplacian.
+
+---
+
+## 5. The circulation matrix — the cycle side of the story
+
+While $K$ handles KCL, we need a matrix for KVL built from fundamental cycles.
+
+### 5.1 Building C
+
+Give each fundamental cycle a walking direction that matches its defining co-tree link. The circulation matrix $C$ has $m - (n - 1)$ rows (cycles) and $m$ columns (links). An entry is $+1$ if the link's arrow aligns with the cycle's walk, $-1$ if it opposes, and $0$ if the link isn't in the cycle.
+
+### 5.2 Bonds (cut-sets): the mirror image of a cycle
+
+A bond (cut-set) is a group of crossing links that divide the nodes into two separate regions. If removing links disconnects a graph, they must contain a bond. Bonds and cycles are intuitive duals: a cycle stays closed inside a region, while a bond acts as a barrier separating regions.
+
+### 5.3 & 5.4 Why columns of C are dependent or independent
+
+A cycle must cross a bond equally in both directions to return home, so those crossings cancel out perfectly. Therefore, any bond's columns in $C$ are linearly dependent, yielding a zero determinant. Conversely, choosing $m - (n - 1)$ columns that don't contain a bond forms a valid co-tree, yielding a determinant of exactly $\pm 1$.
+
+### 5.5 Counting spanning trees again
+
+Applying Cauchy-Binet to $\det(C C^\top)$ counts the number of co-trees. Because every co-tree perfectly complements a spanning tree, this yields the exact same spanning tree count calculated earlier by $K$.
+
+### 5.6 K and C are orthogonal
+
+Every row of $K$ is orthogonal to every row of $C$ because any cycle arriving at and departing from a node perfectly cancels out in the dot product. If you stack $K$ and $C$ into an $m \times m$ matrix, $(\det[K; C])^2$ cleanly equals the squared number of spanning trees.
+
+---
+
+## 6. Kirchhoff's Voltage Law as a matrix equation
+
+Let the diagonal matrix $R$ hold link resistances and column vector $v$ hold voltage sources (positive if pushing with the link arrow, negative if against). The matrix equation $C R i = C v$ precisely enforces KVL across every fundamental cycle. The left side calculates potential drops via Ohm's law, while the right side totals the source voltages around the loop. If it holds for fundamental cycles, it holds for all cycles.
+
+---
+
+## 7. Putting both laws together: the full m × m system
+
+Stacking the matrices yields $[K; CR] \cdot i = [0; Cv]$, exactly $m$ equations for $m$ unknown currents.
+
+### 7.1 When does it have a unique solution?
+
+The system is uniquely solvable only when $\det[K; CR]$ is non-zero. This determinant elegantly expands into a sum, over every possible spanning tree, of the multiplied resistances of its left-out co-tree links. The system has a guaranteed unique solution exactly when the zero-resistance links do not form a cycle among themselves.
+
+### 7.2 Edge case: the short circuit
+
+If zero-resistance links form a cycle containing a voltage source, Ohm's law dictates unbounded current. This mathematical explosion perfectly models a physical short circuit (a blown fuse or tripped breaker).
+
+### 7.3 Edge case: the floating, indeterminate loop
+
+If zero-resistance links form a source-free cycle, the system allows infinitely many valid solutions. You can add an arbitrary constant current circulating purely around that zero-resistance loop without breaking KCL or KVL. It perfectly mimics a persistent current in a superconductor, and solvers will simply return one valid member of this infinite family.
+
+---
+
+## 8. From equations to an actual circuit: the physical dictionary
+
+To model an actual circuit, you only need up to four details per link: the two nodes it connects (fixing arrow direction), its total series resistance, and its ideal battery voltage. Normal Ohm's law is then applied consistently link by link.
+
+---
+
+## 9. Worked examples (verified, not just described)
+
+I successfully implemented this algorithm against all three published examples:
+
+**9.1 A "plain" 8-node, 16-link circuit**
+Solved normally; the graph was non-planar, proving planarity is completely irrelevant to this method.
+
+**9.2 A circuit with a parallel connection**
+The graph was fixed by inserting a dummy node to split a duplicate link into series links. The solved output perfectly reflected identical series currents.
+
+**9.3 Capacitor circuits**
+The method natively solves pure capacitor networks by swapping resistance for elastance ($1/C$) and reading outputs as charge instead of current. Elastances combine additively in series just like resistors, and a plain wire is represented by $0$ elastance.
+
+---
+
+## 10. Every edge case, collected in one place
+
+| Case | Resolution |
+|---|---|
+| Parallel links | Insert a dummy node to split duplicate links into series links |
+| Self-joining links | Excluded outright; they carry zero steady-state current |
+| Disconnected circuits | Solve independent pieces separately |
+| Bridges | Excluded; they are forced to carry exactly zero current |
+| Zero-resistance links (acyclic) | Solves uniquely |
+| Zero-resistance cycle with source | Short circuit (infinite current) |
+| Zero-resistance cycle without source | Under-determined (infinitely many valid solutions) |
+| Non-planar circuits | Completely irrelevant |
+| Capacitor circuits | Handled perfectly by substituting elastance ($1/C$) for resistance |
+
+---
+
+## 11. Closing thoughts
+
+This pattern — KCL living in one matrix's row space, KVL in its orthogonal complement, and solvability tied to a computable determinant condition — frequently appears outside circuits, including in trusses, Markov chains, and flow networks. Understanding this tree/co-tree duality cleanly in electrical circuits makes it vastly easier to recognize in unrelated fields.
+
+---
+
+## References
+
+- Vrbik, J. (2022). *Solving Electrical Circuits via Graph Theory*. Applied Mathematics, 13, 77–86.
+- Wikipedia — "Kirchhoff's theorem", "Elastance"
+- Wolfram MathWorld
+- Tutorialspoint
+- Putman (Notre Dame)
+- Dörfler et al. — *Electrical Networks and Algebraic Graph Theory*
